@@ -14,8 +14,8 @@ export interface HHSFile extends IHHSInstance {
 
   update(): Observable<void>;
 
-  append(file: File): Observable<void>;
-  appendByToken(token: string, file: File): Observable<void>;
+  append(file: File | Blob): Observable<void>;
+  appendByToken(token: string, file: File | Blob): Observable<void>;
   getStorage(): Observable<HHSStorage>;
   getMD5(): Observable<string>;
   getDownloadUrl(token?: string): string;

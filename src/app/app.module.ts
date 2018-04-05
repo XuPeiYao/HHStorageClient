@@ -7,7 +7,7 @@ import { AppComponent } from './app.component';
 import { HHS_Config } from './hhstorage/hhsclient.service';
 
 const hhsConfig: IHHStorageConfig = {
-  host: 'http://localhost:58683', //'http://storage.gofa.cloud',
+  host: 'http://storage.gofa.cloud',
   userId: 'admin',
   password: 'admin'
 };

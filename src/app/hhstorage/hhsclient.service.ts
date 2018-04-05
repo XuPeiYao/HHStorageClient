@@ -10,6 +10,8 @@ import 'rxjs/add/observable/empty';
 import { HHSStorage } from './models/Storage';
 import { HHSFile } from './models/File';
 
+import 'rxjs/add/observable/fromPromise';
+
 export const HHS_Config = new InjectionToken('HHStorageClient_Config');
 
 /**
@@ -257,7 +259,7 @@ export class HHSClientService {
     storage: HHSStorage | string,
     file: File,
     accessModifier: AccessModifier = 'Public'
-  ) {
+  ): Observable<HHSFile> {
     let storageId = storage;
     if (!(storageId instanceof String || typeof storageId === 'string')) {
       storageId = (storageId as any).id;
@@ -279,6 +281,64 @@ export class HHSClientService {
           return result;
         })
       );
+  }
+
+  public uploadWithResume(
+    storage: HHSStorage | string,
+    file: File,
+    accessModifier: AccessModifier = 'Public'
+  ): Observable<HHSFile> {
+    return Observable.fromPromise(
+      new Promise((res, rej) => {
+        const fr = new FileReader(); // 檔案讀取器
+        let buf;
+        fr.onload = async (e: any) => {
+          console.log('檔案讀取完畢');
+
+          // 當檔案讀取完畢
+          const partSize = 1024 * 1024 * 20; // 20MB
+
+          buf = new Uint8Array(e.target.result);
+
+          let fileInstance: HHSFile;
+          // 切割檔案
+          for (let i = 0; i < buf.length; i += partSize) {
+            console.log(
+              `開始上傳區塊: ${i}-${Math.min(buf.length - 1, i + partSize - 1)}`
+            );
+            if (i === 0) {
+              const fakeFile = new File(
+                [new Blob([buf.subarray(i, i + partSize)])],
+                file.name
+              );
+
+              // 第一區塊需要產生檔案實例
+              fileInstance = await this.upload(
+                storage,
+                fakeFile,
+                accessModifier
+              ).toPromise();
+            } else {
+              // 第二區塊開始使用附加方式
+              fileInstance = await this.append(
+                fileInstance,
+                new Blob([buf.subarray(i, i + partSize)])
+              ).toPromise();
+            }
+            console.log(
+              `完成上傳區塊: ${i}-${Math.min(buf.length - 1, i + partSize - 1)}`
+            );
+          }
+
+          fileInstance.name = file.name;
+
+          // 返回最後附加後的結果
+          res(fileInstance);
+        };
+        fr.readAsArrayBuffer(file); // 開始讀取檔案內容
+        console.log('開始讀取檔案');
+      })
+    );
   }
 
   public uploadByToken(
@@ -307,7 +367,7 @@ export class HHSClientService {
 
   public append(
     fileInstance: HHSFile | string,
-    file: File
+    file: File | Blob
   ): Observable<HHSFile> {
     let fileInstanceId = fileInstance;
     if (
@@ -320,7 +380,7 @@ export class HHSClientService {
     formData.append('file', file);
 
     return this.http
-      .post(
+      .put(
         this.makeUrl('api/File/' + fileInstanceId + '/append'),
         formData,
         this.getRequestOptions()
@@ -339,7 +399,7 @@ export class HHSClientService {
   public appendByToken(
     token: string,
     fileInstance: HHSFile | string,
-    file: File
+    file: File | Blob
   ): Observable<HHSFile> {
     let fileInstanceId = fileInstance;
     if (
@@ -354,7 +414,7 @@ export class HHSClientService {
     const query = new UriQueryBuilder({ token: token }).toString();
 
     return this.http
-      .post(
+      .put(
         this.makeUrl('api/File/' + fileInstanceId + '/append' + query),
         formData
       )
@@ -458,7 +518,20 @@ export class HHSClientService {
       );
     };
 
+    storage.uploadWithResume = function(
+      file: File,
+      accessModifier: AccessModifier = 'Public'
+    ): Observable<HHSFile> {
+      return (this.client as HHSClientService).uploadWithResume(
+        this,
+        file,
+        accessModifier
+      );
+    };
+
     storage.update.bind(storage);
+    storage.upload.bind(storage);
+    storage.uploadWithResume.bind(storage);
   }
 
   private bindFileMethod(fileInstance: HHSFile) {
@@ -469,7 +542,7 @@ export class HHSClientService {
         .pipe(map(x => null));
     };
 
-    fileInstance.append = function(file: File): Observable<void> {
+    fileInstance.append = function(file: File | Blob): Observable<void> {
       return (this.client as HHSClientService).append(this, file).pipe(
         map(value => {
           this.size = value.size;
@@ -480,7 +553,7 @@ export class HHSClientService {
 
     fileInstance.appendByToken = function(
       token: string,
-      file: File
+      file: File | Blob
     ): Observable<void> {
       return (this.client as HHSClientService)
         .appendByToken(token, this, file)

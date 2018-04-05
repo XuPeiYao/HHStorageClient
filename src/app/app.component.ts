@@ -10,21 +10,20 @@ import { HHSClientService } from './hhstorage/hhsclient.service';
 export class AppComponent {
   constructor(private client: HHSClientService) {}
   title = 'app';
-
+  file: File;
   @ViewChild('inputElement') inputElement: ElementRef;
 
   async getStorageList() {
     await this.client.login().toPromise();
-    const storage = (await this.client.getStorageList(0, 1).toPromise())
+    const storage = (await this.client.getStorageList(0, 10).toPromise())
       .result[0];
 
-    storage
-      .upload((this.inputElement.nativeElement as HTMLInputElement).files[0])
-      .subscribe(ok => {
-        console.log(ok);
-        ok.getMD5().subscribe(console.log);
-        console.log(ok.getDownloadUrl());
-      });
+    storage.uploadWithResume(this.file).subscribe(ok => {
+      console.log('上傳完成');
+      console.log(ok);
+      ok.getMD5().subscribe(console.log);
+      console.log(ok.getDownloadUrl());
+    });
     /*
     this.client.getStorageList(0, 1).subscribe(x => {
       console.log(x);
@@ -39,5 +38,9 @@ export class AppComponent {
       // 上一頁
       // x.previousPage().subscribe(console.log);
     });*/
+  }
+
+  getFile() {
+    this.file = this.inputElement.nativeElement.files[0];
   }
 }

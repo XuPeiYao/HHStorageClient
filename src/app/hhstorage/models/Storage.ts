@@ -11,5 +11,10 @@ export interface HHSStorage extends IHHSInstance {
 
   update: () => Observable<void>;
   upload: (file: File, accessModifier?: AccessModifier) => Observable<HHSFile>;
+  uploadWithResume: (
+    file: File,
+    accessModifier?: AccessModifier
+  ) => Observable<HHSFile>;
+
   getFileList: (skip: number, take: number) => Observable<HHSFile>;
 }
